@@ -7,3 +7,4 @@ __pycache__
 /dataset
 /original_model
 /quantized_model
+/error

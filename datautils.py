@@ -1,6 +1,6 @@
 import random
 
-from datasets import load_dataset
+from datasets import load_dataset, load_from_disk
 
 
 def get_dataset(dataset_name: str, tokenizer, nsamples: int, seed: int, seqlen: int):
@@ -17,7 +17,9 @@ def get_dataset(dataset_name: str, tokenizer, nsamples: int, seed: int, seqlen: 
 
 
 def get_wikitext2(nsamples: int, seed: int, seqlen: int, tokenizer, jointext: str = '\n\n'):
-	traindata = load_dataset('wikitext', 'wikitext-2-raw-v1', split='train')
+	# traindata = load_dataset('wikitext', 'wikitext-2-raw-v1', split='train')
+	traindata = load_from_disk('dataset')
+	# network problem, need to load data from disk
 
 	trainenc = tokenizer(jointext.join(traindata['text']), return_tensors='pt')
 

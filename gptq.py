@@ -1,7 +1,7 @@
 # Copied from: https://github.com/IST-DASLab/gptq
 import math
 import time
-
+import numpy as np
 import torch
 import torch.nn as nn
 import transformers
@@ -56,7 +56,7 @@ class GPTQ:
 		self.H += inp.matmul(inp.t())
 
 	def fasterquant(
-		self, blocksize=128, percdamp=.01, groupsize=-1, actorder=False
+		self, blocksize=128, percdamp=.01, groupsize=-1, actorder=False, name=None
 	):
 		W = self.layer.weight.data.clone()
 		if isinstance(self.layer, nn.Conv2d):
@@ -143,6 +143,8 @@ class GPTQ:
 		torch.cuda.synchronize()
 		print('time %.2f' % (time.time() - tick))
 		print('error', torch.sum(Losses).item())
+		if name is not None:
+			np.save(f'error/{name}.npy', Losses.cpu().numpy())
 		
 		if actorder:
 			invperm = torch.argsort(perm)

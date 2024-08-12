@@ -113,6 +113,8 @@ def llama_sequential(model, dataloader, device, wbits: int, nsamples: int, true_
 	model.model.norm = model.model.norm.to(device)
 	layers[0] = layers[0].to(device)
 
+	model.to(device)
+
 	# Create a dummy layer that catches the input and attention mask, and then bails
 	# This allows us to capture all the inputs to the first layer for the calibration data
 	cache = {'i': 0, 'attention_mask': None, 'position_ids': None}
@@ -193,7 +195,7 @@ def llama_sequential(model, dataloader, device, wbits: int, nsamples: int, true_
 			# With the data collected, quantize the layers
 			for name in subset:
 				print(i, name)
-				scale, zero = gptq[name].fasterquant(percdamp=percdamp, groupsize=groupsize, actorder=act_order)
+				scale, zero = gptq[name].fasterquant(percdamp=percdamp, groupsize=groupsize, actorder=act_order, name=f'{i}_{name}')
 				quantizers['model.layers.%d.%s' % (i, name)] = (gptq[name].quantizer, scale, zero)
 				gptq[name].free()
 		
