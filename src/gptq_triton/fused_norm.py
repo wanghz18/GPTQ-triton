@@ -4,112 +4,63 @@ import torch
 import torch.nn as nn
 import triton
 import triton.language as tl
-from transformers.models.llama.modeling_llama import LlamaMLP
+from transformers.models.llama.modeling_llama import LlamaMLP, LlamaRMSNorm
 
 from . import custom_autotune
 from .utils import matmul4_kernel_config_pruner
 from IPython import embed
 
 
-def make_fused_mlp(m, parent_name='', save_data=None):
+def make_fused_norm(model, parent_name='', save_data=None):
     """
     Replace all LlamaMLP modules with QuantLlamaMLP modules, which fuses many of the operations.
     """
-    if isinstance(m, LlamaMLP):
-        return QuantLlamaMLP(m.gate_proj, m.down_proj, m.up_proj, save_data)
+    for name, m in model.named_modules():
+        if not isinstance(m, LlamaRMSNorm):
+            continue
 
-    for name, child in m.named_children():
-        child = make_fused_mlp(child, parent_name=f"{parent_name}.{name}", save_data=save_data)
+        mylayer = MyRMSNorm(m, name, save_data=save_data)
+        parent_name = name.rsplit('.', 1)[0]
+        parent = model.get_submodule(parent_name)
 
-        if isinstance(child, QuantLlamaMLP):
-            setattr(m, name, child)
-            child.name = f'{parent_name}.{name}'[1:]
-            #print(f"Replacing {name} with fused_mlp; parent: {parent_name}")
-    
-    return m
+        # print(f"Replacing {name} with norm; parent: {parent_name}, child's name: {name[len(parent_name) + 1:]}")
 
-
-def autotune_warmup(model):
-    # Find all the QuantLlamaMLP layers
-    modules = (m for m in model.modules() if isinstance(m, QuantLlamaMLP))
-    k_values = {m.infeatures: {
-        'gate_proj_qweight': m.gate_proj_qweight,
-        'gate_proj_scales': m.gate_proj_scales,
-        'gate_proj_qzeros': m.gate_proj_qzeros,
-        'up_proj_qweight': m.up_proj_qweight,
-        'up_proj_scales': m.up_proj_scales,
-        'up_proj_qzeros': m.up_proj_qzeros,
-        'groupsize': m.groupsize,
-    } for m in modules}
-
-    print(f'FusedMLP Warmup: Found {len(k_values)} unique K values.')
-
-    def func(m, k, gate_proj_qweight, gate_proj_scales, gate_proj_qzeros, up_proj_qweight, up_proj_scales, up_proj_qzeros, groupsize):
-        a = torch.randn(1, m, k, dtype=torch.float16, device='cuda')
-        triton_llama_mlp_4(groupsize, a, gate_proj_qweight, gate_proj_scales, gate_proj_qzeros, up_proj_qweight, up_proj_scales, up_proj_qzeros)
-    
-    return (functools.partial(func, k=k, **v) for k, v in k_values.items())
+        setattr(parent, name[len(parent_name) + 1:], mylayer)
 
 
-class QuantLlamaMLP(nn.Module):
+class MyRMSNorm(nn.Module):
     def __init__(
         self,
-        gate_proj,
-        down_proj,
-        up_proj,
-        save_data=None
+        m,
+        name,
+        save_data=None,
     ):
         super().__init__()
 
-        assert gate_proj.groupsize == up_proj.groupsize
-
-        # Only save the quantized weights, not the QuantLinear modules
-        # This prevents the QuantLinear autotuning warmup from considering these modules
-        self.register_buffer('gate_proj_qweight', gate_proj.qweight)
-        self.register_buffer('gate_proj_scales', gate_proj.scales)
-        self.register_buffer('gate_proj_qzeros', gate_proj.qzeros)
-        self.register_buffer('up_proj_qweight', up_proj.qweight)
-        self.register_buffer('up_proj_scales', up_proj.scales)
-        self.register_buffer('up_proj_qzeros', up_proj.qzeros)
-        self.groupsize = gate_proj.groupsize
-
-        self.infeatures = gate_proj.infeatures
-        self.outfeatures = down_proj.outfeatures
-
-        self.down_proj = down_proj
-
+        self.layer = m
+        self.name = name
         self.save_data = save_data
 
     def forward(self, x):
-        save_data = self.save_data
+        save = False
         name = self.name
 
-        save = False
-        if 'model.layers.31' in name or 'model.layers.0' in name:
+        if 'model.layers.31' in name or 'model.layers.0' in name or 'model.norm' in name:
             save = True & (self.save_data is not None)
         if not save:
-            y = triton_llama_mlp_4(self.groupsize, x, self.gate_proj_qweight, self.gate_proj_scales, self.gate_proj_qzeros, self.up_proj_qweight, self.up_proj_scales, self.up_proj_qzeros)
-            y = self.down_proj(y)
-            return y
-
-        save_data.add_data(f"{name}_input", x, "bsz, seqlen, dim")
-
-        save_data.add_data(f"{name}_gateweight", self.gate_proj_qweight, "dim / 8, dim")
-        save_data.add_data(f"{name}_gatezeros", self.gate_proj_qzeros, "dim / group_size, dim / 8")
-        save_data.add_data(f"{name}_gatescales", self.gate_proj_scales, "dim / group_size, dim")
-
-        save_data.add_data(f"{name}_upweight", self.up_proj_qweight, "dim / 8, dim")
-        save_data.add_data(f"{name}_upzeros", self.up_proj_qzeros, "dim / group_size, dim / 8")
-        save_data.add_data(f"{name}_upscales", self.up_proj_scales, "dim / group_size, dim")
-
-        save_data.add_data(f"{name}_downweight", self.down_proj.qweight, "dim / 8, dim")
-        save_data.add_data(f"{name}_downzeros", self.down_proj.qzeros, "dim / group_size, dim / 8")
-        save_data.add_data(f"{name}_downscales", self.down_proj.scales, "dim / group_size, dim")
-
-        y = triton_llama_mlp_4(self.groupsize, x, self.gate_proj_qweight, self.gate_proj_scales, self.gate_proj_qzeros, self.up_proj_qweight, self.up_proj_scales, self.up_proj_qzeros)
-        save_data.add_data(f"{name}_silu(gate(x))*up(x)", y, "bsz, seqlen, intermediate_dim")
-        y = self.down_proj(y)
-        save_data.add_data(f"{name}_output", y, "bsz, seqlen, dim")
+            return self.layer(x)
+        
+        self.save_data.add_data(f"{name}_input",
+                                x,
+                                "bsz, seqlen, dim")
+        y = self.layer(x)
+        self.save_data.add_data(f"{name}_output",
+                                y,
+                                "bsz, seqlen, dim")
+        weight = self.layer.weight
+        self.save_data.add_data(f"{name}_weight",
+                                weight,
+                                "dim")
         return y
 
 

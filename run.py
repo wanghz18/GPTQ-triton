@@ -18,6 +18,7 @@ from src.gptq_triton import load_quant
 from transformers import AutoTokenizer, LlamaConfig, LlamaForCausalLM
 from IPython import embed
 from model_yifan import SaveData
+import numpy as np
 
 
 parser = argparse.ArgumentParser()
@@ -45,90 +46,47 @@ def main():
         model.eval()
         model.to('cuda')
     
-    
-    # embed()
-    # exit()
+
     tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False)
 
-    prompt_lengths = [128] # [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
-    max_lengths = [128] # [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
-
-    lengths = set(itertools.product(prompt_lengths, max_lengths))
-
-    # Remove lengths that we've already tested
-    if os.path.exists('results.jsonl'):
-        with open('results.jsonl', 'r') as f:
-            for line in f:
-                line = json.loads(line)
-                key = (line['prompt_length'], line['max_length'])
-                if key in lengths:
-                    lengths.remove(key)
-    
-    # Shuffle the lengths so that we don't always test in the same order and get caching effects
-    lengths = list(lengths)
     random.seed(args.seed)
-    random.shuffle(lengths)
 
-    # TODO: For some reason the first run is always slow, so we run it once before the benchmark to warm things up
-    encoded_prompt = tokenizer.encode("TODO", add_special_tokens=False, return_tensors='pt').to('cuda')
-    _ = model.generate(
-        input_ids=encoded_prompt,
-        max_length=8,
-        do_sample=True,
-        num_return_sequences=1,
-        suppress_tokens=[model.generation_config.eos_token_id],
-    )
+    encoded_prompt = torch.randint(32000, (32, 128), dtype=torch.int32).to('cuda')
+    # tokenizer.encode("TODO", add_special_tokens=False, return_tensors='pt').to('cuda')
+    
+    # encoded_prompt = encoded_prompt.to('cuda')
 
-    # Run the remaining benchmarks
-    with open('results.jsonl', 'a') as f:
-        for prompt_length, max_length in lengths:
-            print(f'Prompt length: {prompt_length}, max length: {max_length}')
+    start_time = time.time()
+    with torch.no_grad():
+        y = model.forward(encoded_prompt)
+    for it in save_data.name_list:
+        data = save_data.data_dict[it].cpu().numpy()
+        filename = f'save/{it}.npy'
+        print(filename, data.shape)
+        np.save(filename, data)
+    
+    def cell(s):
+        return f'<th class="tg-c3ow">{s}</th>'
+    
+    with open('table.html', 'w') as f:
+        f.write('<style type="text/css"> \
+.tg {border-collapse:collapse;border-spacing:0;} \
+.tg td{border-color:black;border-style:solid;border-width:1px;font-family:Arial, sans-serif;font-size:14px; \
+overflow:hidden;padding:10px 5px;word-break:normal;} \
+.tg th{border-color:black;border-style:solid;border-width:1px;font-family:Arial, sans-serif;font-size:14px; \
+font-weight:normal;overflow:hidden;padding:10px 5px;word-break:normal;} \
+.tg .tg-c3ow{border-color:inherit;text-align:center;vertical-align:top} \
+</style>')
+        f.write('<table class="tg">\n')
+        f.write('<thead><tr><th class="tg-c3ow">name</th><th class="tg-c3ow">shape</th><th class="tg-c3ow">shape</th><th class="tg-c3ow">type</th></tr></thead>\n')
+        f.write('<tbody>\n')
+        for it in save_data.name_list:
+            tp = str(save_data.data_dict[it].dtype)
+            sp = cell(f'({save_data.shape_description_dict[it]})')
+            f.write(f'<tr>{cell(it)}{sp}{cell(save_data.shape_dict[it])}{cell(tp)}</tr>\n')
+        f.write('</tbody></table>\n')
+        
 
-            results = []
-
-            for _ in range(args.average):
-                # Generate a long random string
-                # We do this every time to avoid caching effects
-                prompt = ''.join(random.choice('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,;:!?') for _ in range(2048 * 10))
-
-                # Encode and crop down
-                encoded_prompt = tokenizer.encode(prompt, add_special_tokens=False, return_tensors='pt')
-                encoded_prompt = encoded_prompt[:, :prompt_length]
-                encoded_prompt = encoded_prompt.to('cuda')
-
-                start_time = time.time()
-                model.forward(encoded_prompt)
-                # _ = model.generate(
-                #     input_ids=encoded_prompt,
-                #     max_length=max_length + prompt_length,
-                #     do_sample=True,
-                #     num_return_sequences=1,
-                #     suppress_tokens=[model.generation_config.eos_token_id],  # This prevents the sampler from ending early; it must generate max_length tokens
-                # )
-                end_time = time.time()
-
-                gen_time = end_time - start_time
-                speed = max_length / gen_time
-
-                results.append((gen_time, speed))
-            
-            # Compute the average
-            avg_time = sum(t for t, _ in results) / len(results)
-            avg_speed = (max_length * len(results)) / sum(t for t, _ in results)
-
-            print(f'Average generation time: {avg_time:.2f} seconds')
-            print(f'Average generation speed: {avg_speed:.2f} tokens per second')
-            print()
-
-            f.write(json.dumps({
-                'prompt_length': prompt_length,
-                'max_length': max_length,
-                'average_time': avg_time,
-                'average_speed': avg_speed,
-                'runs': results,
-            }))
-            f.write("\n")
-            f.flush()
 
 
 def get_llama(model: str):

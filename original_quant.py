@@ -316,43 +316,43 @@ def find_layers(module, layers=[nn.Conv2d, nn.Linear], name=''):
 
 
 def load_cuda_quant(model, checkpoint, wbits, groupsize):
-	"""
-	Load a quantized model using the old CUDA kernel
-	"""
-	config = LlamaConfig.from_pretrained(model)
-	def noop(*args, **kwargs):
-		pass
-	original_inits = (torch.nn.init.kaiming_uniform_, torch.nn.init.uniform_, torch.nn.init.normal_)
-	torch.nn.init.kaiming_uniform_ = noop 
-	torch.nn.init.uniform_ = noop 
-	torch.nn.init.normal_ = noop 
+    """
+    Load a quantized model using the old CUDA kernel
+    """
+    config = LlamaConfig.from_pretrained(model)
+    def noop(*args, **kwargs):
+        pass
+    original_inits = (torch.nn.init.kaiming_uniform_, torch.nn.init.uniform_, torch.nn.init.normal_)
+    torch.nn.init.kaiming_uniform_ = noop 
+    torch.nn.init.uniform_ = noop 
+    torch.nn.init.normal_ = noop 
 
-	torch.set_default_dtype(torch.half)
-	original_init_weights = transformers.modeling_utils._init_weights
-	transformers.modeling_utils._init_weights = False
-	torch.set_default_dtype(torch.half)
-	model = LlamaForCausalLM(config)
-	torch.set_default_dtype(torch.float)
+    torch.set_default_dtype(torch.half)
+    original_init_weights = transformers.modeling_utils._init_weights
+    transformers.modeling_utils._init_weights = False
+    torch.set_default_dtype(torch.half)
+    model = LlamaForCausalLM(config)
+    torch.set_default_dtype(torch.float)
 
-	transformers.modeling_utils._init_weights = original_init_weights
-	torch.nn.init.kaiming_uniform_, torch.nn.init.uniform_, torch.nn.init.normal_ = original_inits
+    transformers.modeling_utils._init_weights = original_init_weights
+    torch.nn.init.kaiming_uniform_, torch.nn.init.uniform_, torch.nn.init.normal_ = original_inits
 
-	model = model.eval()
-	layers = find_layers(model)
-	for name in ['lm_head']:
-		if name in layers:
-			del layers[name]
-	make_quant(model, layers, wbits, groupsize, faster=False)
+    model = model.eval()
+    layers = find_layers(model)
+    for name in ['lm_head']:
+        if name in layers:
+            del layers[name]
+    make_quant(model, layers, wbits, groupsize, faster=False)
 
-	del layers
+    del layers
 
-	print('Loading model ...')
-	if checkpoint.endswith('.safetensors'):
-		from safetensors.torch import load_file as safe_load
-		model.load_state_dict(safe_load(checkpoint))
-	else:
-		model.load_state_dict(torch.load(checkpoint))
-	model.seqlen = 2048
-	print('Done.')
+    print('Loading model ...')
+    if checkpoint.endswith('.safetensors'):
+        from safetensors.torch import load_file as safe_load
+        model.load_state_dict(safe_load(checkpoint))
+    else:
+        model.load_state_dict(torch.load(checkpoint))
+    model.seqlen = 2048
+    print('Done.')
 
-	return model
+    return model

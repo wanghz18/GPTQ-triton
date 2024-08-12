@@ -18,108 +18,108 @@ parser.add_argument('--context-length', type=int, default=2048, help='Length of 
 
 
 def main():
-	args = parser.parse_args()
+    args = parser.parse_args()
 
-	if not args.quant:
-		model = get_llama(args.model)
-		model.eval()
-		model.to('cuda')
-	else:
-		model = load_quant(args.model)
-		model.eval()
-		model.to('cuda')
-	
-	# NOTE: Setting use_fast=False for now, as the alternative was an order of magnitude slower on a recent `transformers` commit
-	tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False)
-	context_length = model.seqlen if args.context_length is None else args.context_length
+    if not args.quant:
+        model = get_llama(args.model)
+        model.eval()
+        model.to('cuda')
+    else:
+        model = load_quant(args.model)
+        model.eval()
+        model.to('cuda')
+    
+    # NOTE: Setting use_fast=False for now, as the alternative was an order of magnitude slower on a recent `transformers` commit
+    tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False)
+    context_length = model.seqlen if args.context_length is None else args.context_length
 
-	for dataset in ['wikitext-2', 'ptb', 'c4']:
-		ppl = calculate_perplexity(model, tokenizer, dataset, max_length=context_length, stride=args.stride)
-		print(f"{dataset} perplexity: {ppl}")
+    for dataset in ['wikitext-2', 'ptb', 'c4']:
+        ppl = calculate_perplexity(model, tokenizer, dataset, max_length=context_length, stride=args.stride)
+        print(f"{dataset} perplexity: {ppl}")
 
 
 def get_llama(model: str):
-	"""
-	Load a pretrained Llama model
-	"""
-	def skip(*args, **kwargs):
-		pass
-	# NOTE: This is a nasty hack, but it speeds up model building by a huge amount
-	old_inits = (torch.nn.init.kaiming_uniform_, torch.nn.init.uniform_, torch.nn.init.normal_)
-	torch.nn.init.kaiming_uniform_ = skip
-	torch.nn.init.uniform_ = skip
-	torch.nn.init.normal_ = skip
+    """
+    Load a pretrained Llama model
+    """
+    def skip(*args, **kwargs):
+        pass
+    # NOTE: This is a nasty hack, but it speeds up model building by a huge amount
+    old_inits = (torch.nn.init.kaiming_uniform_, torch.nn.init.uniform_, torch.nn.init.normal_)
+    torch.nn.init.kaiming_uniform_ = skip
+    torch.nn.init.uniform_ = skip
+    torch.nn.init.normal_ = skip
 
-	model = LlamaForCausalLM.from_pretrained(model, torch_dtype='auto')
-	model.seqlen = 2048
+    model = LlamaForCausalLM.from_pretrained(model, torch_dtype='auto')
+    model.seqlen = 2048
 
-	# Restore the old initializers
-	torch.nn.init.kaiming_uniform_, torch.nn.init.uniform_, torch.nn.init.normal_ = old_inits
+    # Restore the old initializers
+    torch.nn.init.kaiming_uniform_, torch.nn.init.uniform_, torch.nn.init.normal_ = old_inits
 
-	return model
+    return model
 
 
 def get_dataset(dataset_name: str, tokenizer) -> torch.Tensor:
-	if dataset_name == "wikitext-2":
-		test = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")
-		encodings = tokenizer("\n\n".join(test["text"]), return_tensors="pt").input_ids
-	elif dataset_name == 'ptb':
-		test = load_dataset("ptb_text_only", 'penn_treebank', split="validation")
-		encodings = tokenizer("\n\n".join(test["sentence"]), return_tensors="pt").input_ids
-	elif dataset_name == 'c4':
-		# WARNING: Many of the files in the allenai/c4 repo are marked as "Unsafe" by HuggingFace, possibly containing a virus.  This particular file is not, and I doubt it's an issue, but worth noting.
-		test = load_dataset('allenai/c4', 'allenai--c4', data_files={'validation': 'en/c4-validation.00000-of-00008.json.gz'}, split='validation')
-		encodings = [tokenizer(x, return_tensors="pt").input_ids for x in test['text'][:1000]]
-		encodings = torch.cat(encodings, dim=1)
-	else:
-		raise ValueError(f"Unknown dataset {dataset_name}")
+    if dataset_name == "wikitext-2":
+        test = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")
+        encodings = tokenizer("\n\n".join(test["text"]), return_tensors="pt").input_ids
+    elif dataset_name == 'ptb':
+        test = load_dataset("ptb_text_only", 'penn_treebank', split="validation")
+        encodings = tokenizer("\n\n".join(test["sentence"]), return_tensors="pt").input_ids
+    elif dataset_name == 'c4':
+        # WARNING: Many of the files in the allenai/c4 repo are marked as "Unsafe" by HuggingFace, possibly containing a virus.  This particular file is not, and I doubt it's an issue, but worth noting.
+        test = load_dataset('allenai/c4', 'allenai--c4', data_files={'validation': 'en/c4-validation.00000-of-00008.json.gz'}, split='validation')
+        encodings = [tokenizer(x, return_tensors="pt").input_ids for x in test['text'][:1000]]
+        encodings = torch.cat(encodings, dim=1)
+    else:
+        raise ValueError(f"Unknown dataset {dataset_name}")
 
-	return encodings
+    return encodings
 
 
 def calculate_perplexity(model, tokenizer, dataset: str, max_length: int, stride: int = 512) -> float:
-	print("Loading dataset...")
-	encodings = get_dataset(dataset, tokenizer)
-	seq_len = encodings.size(1)
+    print("Loading dataset...")
+    encodings = get_dataset(dataset, tokenizer)
+    seq_len = encodings.size(1)
 
-	print("Calculating perplexity...")
-	print(f"Sequence length: {seq_len}")
-	print(f"Max length: {max_length}")
-	print(f"Stride: {stride}")
+    print("Calculating perplexity...")
+    print(f"Sequence length: {seq_len}")
+    print(f"Max length: {max_length}")
+    print(f"Stride: {stride}")
 
-	nlls = []
-	prev_end_loc = 0
+    nlls = []
+    prev_end_loc = 0
 
-	for begin_loc in (pbar := tqdm(range(0, seq_len - 1, stride))):
-		end_loc = min(seq_len - 1, begin_loc + max_length)
-		trg_len = end_loc - prev_end_loc  # How many tokens we want to predict
-		input_ids = encodings[:, begin_loc:end_loc+1].to('cuda')  # +1 for the labels
+    for begin_loc in (pbar := tqdm(range(0, seq_len - 1, stride))):
+        end_loc = min(seq_len - 1, begin_loc + max_length)
+        trg_len = end_loc - prev_end_loc  # How many tokens we want to predict
+        input_ids = encodings[:, begin_loc:end_loc+1].to('cuda')  # +1 for the labels
 
-		with torch.no_grad():
-			# Ask the model for logits
-			# NOTE: Instead of calling HF's model wrapper, we call the model directly to hopefully cut down on some memory overhead
-			outputs = model.model(input_ids[:, :-1], use_cache=False)
-			logits = model.lm_head(outputs[0][..., -trg_len:, :])
+        with torch.no_grad():
+            # Ask the model for logits
+            # NOTE: Instead of calling HF's model wrapper, we call the model directly to hopefully cut down on some memory overhead
+            outputs = model.model(input_ids[:, :-1], use_cache=False)
+            logits = model.lm_head(outputs[0][..., -trg_len:, :])
 
-			# The last trg_len tokens are the labels
-			labels = input_ids[:, -trg_len:].contiguous()
+            # The last trg_len tokens are the labels
+            labels = input_ids[:, -trg_len:].contiguous()
 
-			# Compute the NLL for this batch using flattened logits and labels
-			loss_fct = nn.CrossEntropyLoss()
-			loss = loss_fct(logits.view(-1, logits.size(-1)), labels.view(-1))
-		
-		nlls.append(loss.to('cpu').to(torch.float32))
-		ppl = torch.exp(torch.stack(nlls).mean())
-		pbar.set_description(f"Perplexity: {ppl:.2f}")
+            # Compute the NLL for this batch using flattened logits and labels
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(logits.view(-1, logits.size(-1)), labels.view(-1))
+        
+        nlls.append(loss.to('cpu').to(torch.float32))
+        ppl = torch.exp(torch.stack(nlls).mean())
+        pbar.set_description(f"Perplexity: {ppl:.2f}")
 
-		prev_end_loc = end_loc
-		if end_loc == (seq_len - 1):
-			break
+        prev_end_loc = end_loc
+        if end_loc == (seq_len - 1):
+            break
 
-	ppl = torch.exp(torch.stack(nlls).mean())
+    ppl = torch.exp(torch.stack(nlls).mean())
 
-	return ppl
+    return ppl
 
 
 if __name__ == '__main__':
-	main()
+    main()
