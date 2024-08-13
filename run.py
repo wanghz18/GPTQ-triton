@@ -62,6 +62,12 @@ def main():
     for it in save_data.name_list:
         data = save_data.data_dict[it].cpu().numpy()
         filename = f'save/{it}.npy'
+        new_name = filename.replace('(', '_')
+        new_name = new_name.replace(')', '_')
+        new_name = new_name.replace('*', '_')
+        new_name = new_name.replace('|', '_')
+        new_name = new_name.replace('^', '_')
+        filename = new_name
         print(filename, data.shape)
         np.save(filename, data)
     
