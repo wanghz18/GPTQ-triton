@@ -77,6 +77,8 @@ class QuantLlamaMLP(nn.Module):
         self.outfeatures = down_proj.outfeatures
 
         self.down_proj = down_proj
+        self.up_proj = up_proj
+        self.gate_proj = gate_proj
 
         self.save_data = save_data
 
@@ -106,7 +108,17 @@ class QuantLlamaMLP(nn.Module):
         save_data.add_data(f"{name}_downzeros", self.down_proj.qzeros, "dim / group_size, dim / 8")
         save_data.add_data(f"{name}_downscales", self.down_proj.scales, "dim / group_size, dim")
 
-        y = triton_llama_mlp_4(self.groupsize, x, self.gate_proj_qweight, self.gate_proj_scales, self.gate_proj_qzeros, self.up_proj_qweight, self.up_proj_scales, self.up_proj_qzeros)
+        y1 = self.gate_proj(x)
+        save_data.add_data(f"{name}_gate(x)", y1, "bsz, seqlen, intermediate_dim")
+        m = torch.nn.SiLU()
+        y1 = m(y1)
+        save_data.add_data(f"{name}_silu(gate(x))", y1, "bsz, seqlen, intermediate_dim")
+
+        y2 = self.up_proj(x)
+        save_data.add_data(f"{name}_up(x)", y2, "bsz, seqlen, intermediate_dim")
+
+        # y = triton_llama_mlp_4(self.groupsize, x, self.gate_proj_qweight, self.gate_proj_scales, self.gate_proj_qzeros, self.up_proj_qweight, self.up_proj_scales, self.up_proj_qzeros)
+        y = y1 * y2
         save_data.add_data(f"{name}_silu(gate(x))*up(x)", y, "bsz, seqlen, intermediate_dim")
         y = self.down_proj(y)
         save_data.add_data(f"{name}_output", y, "bsz, seqlen, dim")

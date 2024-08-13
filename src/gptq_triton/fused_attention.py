@@ -119,8 +119,8 @@ class QuantLlamaAttention(nn.Module):
             save_data.add_data(f"{name}_kscales", k.contiguous(), "dim / group_size, dim")
             save_data.add_data(f"{name}_vscales", v.contiguous(), "dim / group_size, dim")
 
-            save_data.add_data(f"{name}_q_before_rope", q.contiguous(), "bsz, seqlen, dim")
-            save_data.add_data(f"{name}_k_before_rope", k.contiguous(), "bsz, seqlen, dim")
+            save_data.add_data(f"{name}_q_before_rope", query_states.contiguous(), "bsz, seqlen, dim")
+            save_data.add_data(f"{name}_k_before_rope", key_states.contiguous(), "bsz, seqlen, dim")
 
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         key_states = key_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)

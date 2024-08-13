@@ -1,9 +1,9 @@
 <style type="text/css"> .tg {border-collapse:collapse;border-spacing:0;} .tg td{border-color:black;border-style:solid;border-width:1px;font-family:Arial, sans-serif;font-size:14px; overflow:hidden;padding:10px 5px;word-break:normal;} .tg th{border-color:black;border-style:solid;border-width:1px;font-family:Arial, sans-serif;font-size:14px; font-weight:normal;overflow:hidden;padding:10px 5px;word-break:normal;} .tg .tg-c3ow{border-color:inherit;text-align:center;vertical-align:top} </style><table class="tg">
 <thead><tr><th class="tg-c3ow">name</th><th class="tg-c3ow">shape</th><th class="tg-c3ow">shape</th><th class="tg-c3ow">type</th></tr></thead>
 <tbody>
-<tr><th class="tg-c3ow">model.embed_tokens_input</th><th class="tg-c3ow">(bsz, seqlen, dim)</th><th class="tg-c3ow">(32, 128)</th><th class="tg-c3ow">torch.int32</th></tr>
+<tr><th class="tg-c3ow">model.embed_tokens_input</th><th class="tg-c3ow">(bsz, seqlen)</th><th class="tg-c3ow">(32, 128)</th><th class="tg-c3ow">torch.int32</th></tr>
 <tr><th class="tg-c3ow">model.embed_tokens_output</th><th class="tg-c3ow">(bsz, seqlen, dim)</th><th class="tg-c3ow">(32, 128, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
-<tr><th class="tg-c3ow">model.embed_tokens_weight</th><th class="tg-c3ow">(dim)</th><th class="tg-c3ow">(32000, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
+<tr><th class="tg-c3ow">model.embed_tokens_weight</th><th class="tg-c3ow">(vocal_size, dim)</th><th class="tg-c3ow">(32000, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.layers.0.input_layernorm_input</th><th class="tg-c3ow">(bsz, seqlen, dim)</th><th class="tg-c3ow">(32, 128, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.layers.0.input_layernorm_output</th><th class="tg-c3ow">(bsz, seqlen, dim)</th><th class="tg-c3ow">(32, 128, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.layers.0.input_layernorm_weight</th><th class="tg-c3ow">(dim)</th><th class="tg-c3ow">(4096,)</th><th class="tg-c3ow">torch.float16</th></tr>
@@ -17,8 +17,8 @@
 <tr><th class="tg-c3ow">model.layers.0.self_attn_qscales</th><th class="tg-c3ow">(dim / group_size, dim)</th><th class="tg-c3ow">(32, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.layers.0.self_attn_kscales</th><th class="tg-c3ow">(dim / group_size, dim)</th><th class="tg-c3ow">(32, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.layers.0.self_attn_vscales</th><th class="tg-c3ow">(dim / group_size, dim)</th><th class="tg-c3ow">(32, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
-<tr><th class="tg-c3ow">model.layers.0.self_attn_q_before_rope</th><th class="tg-c3ow">(bsz, seqlen, dim)</th><th class="tg-c3ow">(32, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
-<tr><th class="tg-c3ow">model.layers.0.self_attn_k_before_rope</th><th class="tg-c3ow">(bsz, seqlen, dim)</th><th class="tg-c3ow">(32, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
+<tr><th class="tg-c3ow">model.layers.0.self_attn_q_before_rope</th><th class="tg-c3ow">(bsz, seqlen, dim)</th><th class="tg-c3ow">(32, 128, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
+<tr><th class="tg-c3ow">model.layers.0.self_attn_k_before_rope</th><th class="tg-c3ow">(bsz, seqlen, dim)</th><th class="tg-c3ow">(32, 128, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.layers.0.self_attn_Q</th><th class="tg-c3ow">(bsz, n_heads, seqlen, head_dim)</th><th class="tg-c3ow">(32, 32, 128, 128)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.layers.0.self_attn_K</th><th class="tg-c3ow">(bsz, n_heads, seqlen, head_dim)</th><th class="tg-c3ow">(32, 32, 128, 128)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.layers.0.self_attn_V</th><th class="tg-c3ow">(bsz, n_heads, seqlen, head_dim)</th><th class="tg-c3ow">(32, 32, 128, 128)</th><th class="tg-c3ow">torch.float16</th></tr>
@@ -45,6 +45,9 @@
 <tr><th class="tg-c3ow">model.layers.0.mlp_downweight</th><th class="tg-c3ow">(dim / 8, dim)</th><th class="tg-c3ow">(1376, 4096)</th><th class="tg-c3ow">torch.int32</th></tr>
 <tr><th class="tg-c3ow">model.layers.0.mlp_downzeros</th><th class="tg-c3ow">(dim / group_size, dim / 8)</th><th class="tg-c3ow">(86, 512)</th><th class="tg-c3ow">torch.int32</th></tr>
 <tr><th class="tg-c3ow">model.layers.0.mlp_downscales</th><th class="tg-c3ow">(dim / group_size, dim)</th><th class="tg-c3ow">(86, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
+<tr><th class="tg-c3ow">model.layers.0.mlp_gate(x)</th><th class="tg-c3ow">(bsz, seqlen, intermediate_dim)</th><th class="tg-c3ow">(32, 128, 11008)</th><th class="tg-c3ow">torch.float16</th></tr>
+<tr><th class="tg-c3ow">model.layers.0.mlp_silu(gate(x))</th><th class="tg-c3ow">(bsz, seqlen, intermediate_dim)</th><th class="tg-c3ow">(32, 128, 11008)</th><th class="tg-c3ow">torch.float16</th></tr>
+<tr><th class="tg-c3ow">model.layers.0.mlp_up(x)</th><th class="tg-c3ow">(bsz, seqlen, intermediate_dim)</th><th class="tg-c3ow">(32, 128, 11008)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.layers.0.mlp_silu(gate(x))*up(x)</th><th class="tg-c3ow">(bsz, seqlen, intermediate_dim)</th><th class="tg-c3ow">(32, 128, 11008)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.layers.0.mlp_output</th><th class="tg-c3ow">(bsz, seqlen, dim)</th><th class="tg-c3ow">(32, 128, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.layers.31.input_layernorm_input</th><th class="tg-c3ow">(bsz, seqlen, dim)</th><th class="tg-c3ow">(32, 128, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
@@ -60,8 +63,8 @@
 <tr><th class="tg-c3ow">model.layers.31.self_attn_qscales</th><th class="tg-c3ow">(dim / group_size, dim)</th><th class="tg-c3ow">(32, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.layers.31.self_attn_kscales</th><th class="tg-c3ow">(dim / group_size, dim)</th><th class="tg-c3ow">(32, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.layers.31.self_attn_vscales</th><th class="tg-c3ow">(dim / group_size, dim)</th><th class="tg-c3ow">(32, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
-<tr><th class="tg-c3ow">model.layers.31.self_attn_q_before_rope</th><th class="tg-c3ow">(bsz, seqlen, dim)</th><th class="tg-c3ow">(32, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
-<tr><th class="tg-c3ow">model.layers.31.self_attn_k_before_rope</th><th class="tg-c3ow">(bsz, seqlen, dim)</th><th class="tg-c3ow">(32, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
+<tr><th class="tg-c3ow">model.layers.31.self_attn_q_before_rope</th><th class="tg-c3ow">(bsz, seqlen, dim)</th><th class="tg-c3ow">(32, 128, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
+<tr><th class="tg-c3ow">model.layers.31.self_attn_k_before_rope</th><th class="tg-c3ow">(bsz, seqlen, dim)</th><th class="tg-c3ow">(32, 128, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.layers.31.self_attn_Q</th><th class="tg-c3ow">(bsz, n_heads, seqlen, head_dim)</th><th class="tg-c3ow">(32, 32, 128, 128)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.layers.31.self_attn_K</th><th class="tg-c3ow">(bsz, n_heads, seqlen, head_dim)</th><th class="tg-c3ow">(32, 32, 128, 128)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.layers.31.self_attn_V</th><th class="tg-c3ow">(bsz, n_heads, seqlen, head_dim)</th><th class="tg-c3ow">(32, 32, 128, 128)</th><th class="tg-c3ow">torch.float16</th></tr>
@@ -88,12 +91,15 @@
 <tr><th class="tg-c3ow">model.layers.31.mlp_downweight</th><th class="tg-c3ow">(dim / 8, dim)</th><th class="tg-c3ow">(1376, 4096)</th><th class="tg-c3ow">torch.int32</th></tr>
 <tr><th class="tg-c3ow">model.layers.31.mlp_downzeros</th><th class="tg-c3ow">(dim / group_size, dim / 8)</th><th class="tg-c3ow">(86, 512)</th><th class="tg-c3ow">torch.int32</th></tr>
 <tr><th class="tg-c3ow">model.layers.31.mlp_downscales</th><th class="tg-c3ow">(dim / group_size, dim)</th><th class="tg-c3ow">(86, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
+<tr><th class="tg-c3ow">model.layers.31.mlp_gate(x)</th><th class="tg-c3ow">(bsz, seqlen, intermediate_dim)</th><th class="tg-c3ow">(32, 128, 11008)</th><th class="tg-c3ow">torch.float16</th></tr>
+<tr><th class="tg-c3ow">model.layers.31.mlp_silu(gate(x))</th><th class="tg-c3ow">(bsz, seqlen, intermediate_dim)</th><th class="tg-c3ow">(32, 128, 11008)</th><th class="tg-c3ow">torch.float16</th></tr>
+<tr><th class="tg-c3ow">model.layers.31.mlp_up(x)</th><th class="tg-c3ow">(bsz, seqlen, intermediate_dim)</th><th class="tg-c3ow">(32, 128, 11008)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.layers.31.mlp_silu(gate(x))*up(x)</th><th class="tg-c3ow">(bsz, seqlen, intermediate_dim)</th><th class="tg-c3ow">(32, 128, 11008)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.layers.31.mlp_output</th><th class="tg-c3ow">(bsz, seqlen, dim)</th><th class="tg-c3ow">(32, 128, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.norm_input</th><th class="tg-c3ow">(bsz, seqlen, dim)</th><th class="tg-c3ow">(32, 128, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.norm_output</th><th class="tg-c3ow">(bsz, seqlen, dim)</th><th class="tg-c3ow">(32, 128, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">model.norm_weight</th><th class="tg-c3ow">(dim)</th><th class="tg-c3ow">(4096,)</th><th class="tg-c3ow">torch.float16</th></tr>
 <tr><th class="tg-c3ow">lm_head_input</th><th class="tg-c3ow">(bsz, seqlen, dim)</th><th class="tg-c3ow">(32, 128, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
-<tr><th class="tg-c3ow">lm_head_output</th><th class="tg-c3ow">(bsz, seqlen, dim)</th><th class="tg-c3ow">(32, 128, 32000)</th><th class="tg-c3ow">torch.float16</th></tr>
-<tr><th class="tg-c3ow">lm_head_weight</th><th class="tg-c3ow">(dim)</th><th class="tg-c3ow">(32000, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
+<tr><th class="tg-c3ow">lm_head_output</th><th class="tg-c3ow">(bsz, seqlen, vocal_size)</th><th class="tg-c3ow">(32, 128, 32000)</th><th class="tg-c3ow">torch.float16</th></tr>
+<tr><th class="tg-c3ow">lm_head_weight</th><th class="tg-c3ow">(vocal_size, dim)</th><th class="tg-c3ow">(32000, 4096)</th><th class="tg-c3ow">torch.float16</th></tr>
 </tbody></table>

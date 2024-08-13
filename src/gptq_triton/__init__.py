@@ -61,7 +61,7 @@ class myEmbedding(torch.nn.Module):
         
         self.save_data.add_data(f"{name}_input",
                                 x,
-                                "bsz, seqlen, dim")
+                                "bsz, seqlen")
         y = self.layer(x)
         self.save_data.add_data(f"{name}_output",
                                 y,
@@ -69,7 +69,7 @@ class myEmbedding(torch.nn.Module):
         weight = self.layer.weight
         self.save_data.add_data(f"{name}_weight",
                                 weight,
-                                "dim")
+                                "vocal_size, dim")
         return y
 
 class myLinear(torch.nn.Module):
@@ -99,11 +99,11 @@ class myLinear(torch.nn.Module):
         y = self.layer(x)
         self.save_data.add_data(f"{name}_output",
                                 y,
-                                "bsz, seqlen, dim")
+                                "bsz, seqlen, vocal_size")
         weight = self.layer.weight
         self.save_data.add_data(f"{name}_weight",
                                 weight,
-                                "dim")
+                                "vocal_size, dim")
         return y
   
 
