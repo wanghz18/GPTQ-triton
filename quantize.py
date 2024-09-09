@@ -7,7 +7,7 @@ from pathlib import Path
 import shutil
 import time
 from typing import Optional
-
+import numpy as np
 import torch
 import torch.nn as nn
 from datautils import get_dataset
@@ -91,7 +91,7 @@ def get_llama(model):
     torch.nn.init.uniform_ = skip
     torch.nn.init.normal_ = skip
 
-    model = LlamaForCausalLM.from_pretrained(model, torch_dtype='auto')
+    model = LlamaForCausalLM.from_pretrained(model, torch_dtype='auto', device_map='auto')
     model.seqlen = 2048
 
     return model
@@ -106,7 +106,7 @@ def llama_sequential(model, dataloader, device, wbits: int, nsamples: int, true_
     # Prepare
     layers = model.model.layers
     dtype = next(iter(model.parameters())).dtype
-    inps = torch.zeros((nsamples, model.seqlen, model.config.hidden_size), dtype=dtype, device=device)
+    inps = torch.zeros((nsamples, model.seqlen, model.config.hidden_size), dtype=dtype, device=model.device)
     outs = torch.zeros_like(inps)
 
     # Move the first layer to GPU
@@ -114,7 +114,7 @@ def llama_sequential(model, dataloader, device, wbits: int, nsamples: int, true_
     model.model.norm = model.model.norm.to(device)
     layers[0] = layers[0].to(device)
 
-    model.to(device)
+    # model.to(device)
 
     # Create a dummy layer that catches the input and attention mask, and then bails
     # This allows us to capture all the inputs to the first layer for the calibration data
@@ -155,7 +155,7 @@ def llama_sequential(model, dataloader, device, wbits: int, nsamples: int, true_
     # Layers are quantized in order, and only one layer lives on the GPU at a time to save memory
     # Otherwise quantizing large models would be impossible (NOTE for future readers: are you enjoying your 1TB VRAM?)
     for i, layer in tqdm(enumerate(layers), total=len(layers)):
-        layer = layer.to(device)
+        # layer = layer.to(device)
         full = {name: m for name, m in layer.named_modules() if isinstance(m, nn.Linear)}
 
         if true_sequential:
@@ -196,20 +196,19 @@ def llama_sequential(model, dataloader, device, wbits: int, nsamples: int, true_
             # With the data collected, quantize the layers
             for name in subset:
                 print(i, name)
-                if i < 1:
-                    scale, zero = gptq[name].fasterquant(percdamp=percdamp, groupsize=groupsize, actorder=act_order, name=f'{i}_{name}')
+                scale, zero = gptq[name].fasterquant(percdamp=percdamp, groupsize=groupsize, actorder=act_order, name=f'{i}_{name}')
                 quantizers['model.layers.%d.%s' % (i, name)] = (gptq[name].quantizer, scale, zero)
-                gptq[name].free()
+                # gptq[name].free()
         
         # Save outputs of the layer after quantization, so we can feed them into the next layer
         for j in range(nsamples):
             outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
 
         # Move the layer back to the CPU, and free up memory
-        layers[i] = layer.cpu()
-        del layer
-        del gptq 
-        torch.cuda.empty_cache()
+        # layers[i] = layer.cpu()
+        # del layer
+        # del gptq 
+        # torch.cuda.empty_cache()
 
         # Swap buffers
         inps, outs = outs, inps
