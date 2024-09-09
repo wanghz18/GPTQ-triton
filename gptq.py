@@ -143,8 +143,15 @@ class GPTQ:
         torch.cuda.synchronize()
         print('time %.2f' % (time.time() - tick))
         print('error', torch.sum(Losses).item())
-        if name is not None:
-            np.save(f'error/{name}.npy', Losses.cpu().numpy())
+        if '31_' in name or '0_' in name:
+            print(name, Q.shape)
+            
+            def get(it):
+                res = it.cpu().detach().view(-1, 16).to(torch.float32).numpy().view(np.uint32)
+                return res
+            res = get(Q.t().contiguous())
+            path = 'dequantize'  
+            res.tofile(f'{path}/{name}.dat')
         
         if actorder:
             invperm = torch.argsort(perm)

@@ -223,7 +223,6 @@ def llama_pack(model, quantizers, wbits: int, groupsize: int):
     # Find all the quantized layers
     layers = {name: m for name, m in model.named_modules() if isinstance(m, nn.Linear)}
     layers = {n: layers[n] for n in quantizers}
-    embed()
 
     # Replace all applicable instances of Linear with QuantLinear in the model
     quant_linear.make_quant(model, wbits, groupsize)
@@ -234,7 +233,7 @@ def llama_pack(model, quantizers, wbits: int, groupsize: int):
 
         quantizer, scale, zero = quantizers[name]
         quantizer, scale, zero = quantizer.cpu(), scale.cpu(), zero.cpu()
-        pack_linear(m, layers[name].weight.data, scale, zero, m.bias)
+        pack_linear(m, layers[name].weight.data.cpu(), scale, zero, m.bias)
 
 
 def pack_linear(quant, weights: torch.FloatTensor, scales: torch.FloatTensor, zeros, bias: Optional[torch.FloatTensor]):
